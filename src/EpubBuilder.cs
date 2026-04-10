@@ -479,7 +479,9 @@ namespace UnpackKindleS
 
                 t = t.Replace("{❕navMap}", temp_epub2.ToString());
                 t = t.Replace("{❕Title}", azw3.title);
-                string z = azw3.mobi_header.extMeta.id_string[504];//ASIN
+                string z = azw3.mobi_header.extMeta.id_string.ContainsKey(504)
+                    ? azw3.mobi_header.extMeta.id_string[504]
+                    : Guid.NewGuid().ToString();//ASIN
                 t = t.Replace("{❕uid}", z);
                 t = t.Replace("{❕depth}", maxLevel + 1 + "");
                 ncx = t;
@@ -612,8 +614,8 @@ namespace UnpackKindleS
                     string mediaType = "";
                     switch (Path.GetExtension(fontname))
                     {
-                        case ".ttf": mediaType = "application/font-sfnt"; break;
-                        case ".otf": mediaType = "application/font-sfnt"; break;
+                        case ".ttf": mediaType = "font/ttf"; break;
+                        case ".otf": mediaType = "font/otf"; break;
                     }
                     item.SetAttribute("media-type", mediaType);
                     mani_root.AppendChild(item);
@@ -657,7 +659,8 @@ namespace UnpackKindleS
                 }
 
                 {
-                    string lang = azw3.mobi_header.extMeta.id_string[524];
+                    string lang = azw3.mobi_header.extMeta.id_string.ContainsKey(524)
+                        ? azw3.mobi_header.extMeta.id_string[524] : "ja";
                     XmlElement x = meta.CreateElement("dc:language");
                     x.InnerXml = lang;
                     meta.FirstChild.AppendChild(x);
@@ -666,12 +669,13 @@ namespace UnpackKindleS
                     XmlElement x = meta.CreateElement("dc:identifier");
                     x.SetAttribute("id", "ASIN");
                     //x.SetAttribute("opf:scheme", "ASIN");
-                    string z = azw3.mobi_header.extMeta.id_string[504];
+                    string z = azw3.mobi_header.extMeta.id_string.ContainsKey(504)
+                        ? azw3.mobi_header.extMeta.id_string[504] : Guid.NewGuid().ToString();
                     x.InnerXml = z;
                     meta.FirstChild.AppendChild(x);
                     XmlElement xd = meta.CreateElement("meta");
                     xd.SetAttribute("property", "dcterms:modified");
-                    xd.InnerText = DateTime.Now.ToString("yyyy-MM-ddThh:mm:ssZ");
+                    xd.InnerText = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ssZ");
                     meta.FirstChild.AppendChild(xd);
                 }
                 if (azw3.mobi_header.extMeta.id_string.ContainsKey(100))
@@ -787,9 +791,22 @@ namespace UnpackKindleS
                     t = t.Replace("{❕othermeta}", tempstr);
                 }
 
+                if (cover_name != null)
+                {
+                    string coverId = Path.GetFileNameWithoutExtension(cover_name);
+                    XmlElement x = meta.CreateElement("meta");
+                    x.SetAttribute("name", "cover");
+                    x.SetAttribute("content", coverId);
+                    meta.FirstChild.AppendChild(x);
+                }
+
                 t = t.Replace("{❕meta}", Util.GetInnerXML((XmlElement)meta.FirstChild));
                 //string metas = azw3.resc.metadata.OuterXml;
-                ((XmlElement)(azw3.resc.spine.FirstChild)).SetAttribute("toc", "ncxuks"); ;
+                ((XmlElement)(azw3.resc.spine.FirstChild)).SetAttribute("toc", "ncxuks");
+                if (azw3.mobi_header.extMeta.id_string.ContainsKey(527))
+                    ((XmlElement)(azw3.resc.spine.FirstChild))
+                        .SetAttribute("page-progression-direction",
+                                      azw3.mobi_header.extMeta.id_string[527]);
                 string spine = azw3.resc.spine.OuterXml;
                 t = t.Replace("{❕spine}", spine.Replace("><", ">\n<"));
                 t = t.Replace("{❕version}", Version.version);
