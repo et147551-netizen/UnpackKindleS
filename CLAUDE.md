@@ -248,6 +248,36 @@ Log is saved to `lastrun.log` one level above the executable after each run. Use
 
 ---
 
+## EPUB Compatibility Notes
+
+These points are non-obvious and exist to prevent regressions — do not "simplify" them away.
+
+### Cover image — dual declaration required
+The cover image must be declared **twice** in `content.opf`:
+
+1. **EPUB3** (manifest item, `EpubBuilder.cs`): `<item properties="cover-image" .../>` — required by the EPUB 3 spec.
+2. **EPUB2 legacy** (metadata block, `EpubBuilder.cs`): `<meta name="cover" content="[image-id]"/>` — required by Google Play Books, Kobo, and most cloud/embedded readers that still use the EPUB2 heuristic.
+
+Removing either tag will break cover display on at least one class of reader.
+
+### Font MIME types
+Fonts in `OEBPS/Fonts/` use IANA-registered types:
+- `.ttf` → `font/ttf`
+- `.otf` → `font/otf`
+
+Do **not** revert to `application/font-sfnt`; that type was never formally registered and is rejected by Readium-based readers.
+
+### EXTH metadata access
+Always use `ContainsKey` before indexing `ExtMeta.id_string[]` or `id_value[]`. Standard retail Kindle books always include fields 504 (ASIN) and 524 (language), but non-retail or malformed files may omit them. A direct `id_string[key]` without a guard throws `KeyNotFoundException` and aborts the conversion. Fallbacks: `"ja"` for language, `Guid.NewGuid().ToString()` for ASIN.
+
+### `dcterms:modified` timestamp format
+Use `DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ssZ")` — uppercase `HH` for 24-hour clock. The lowercase `hh` format produces incorrect PM timestamps (e.g. 15:30 → `T03:30:00Z`).
+
+### `page-progression-direction` on the spine element
+EXTH field 527 carries the `page-progression-direction` value (`rtl` for Japanese books). It must be applied as an attribute on the `<spine>` element in the OPF, **not** as a `<meta>` element. The RESC section spine XML may already carry this attribute for some files; for others it is only present in EXTH 527.
+
+---
+
 ## Development Notes
 
 - The project targets **net5** only. Do not upgrade to net6+ without verifying `System.Drawing.Common` still works on Windows (it was removed from cross-platform support in net6).
