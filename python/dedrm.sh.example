@@ -1,0 +1,9 @@
+#!/bin/sh
+# Example DeDRM hook for the -dedrm switch on Linux/macOS.
+# Copy to "dedrm.sh", make it executable, and have it strip DRM from the
+# .azw passed as $1 (producing the matching _nodrm.azw3 next to it).
+#
+# DeDRM tooling itself is out of scope for UnpackKindleS; wire in your own,
+# e.g. the DeDRM_tools plugin's command-line entry point.
+echo "dedrm.sh: would remove DRM from: $1" >&2
+exit 1

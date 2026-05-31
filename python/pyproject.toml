@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unpackkindles"
+version = "20220126"
+description = ".NET-independent Python port of UnpackKindleS: convert DRM-free Kindle .azw3/.azw.res to EPUB."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "See repository LICENSE" }
+dependencies = [
+    "lxml>=4.9",
+    "Pillow>=9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Aeroblast/UnpackKindleS"
+
+[project.scripts]
+unpackkindles = "unpackkindles.cli:main"
+
+[tool.setuptools]
+packages = ["unpackkindles"]
+
+[tool.setuptools.package-data]
+unpackkindles = ["data/*.dtd", "data/templates/*.txt"]
