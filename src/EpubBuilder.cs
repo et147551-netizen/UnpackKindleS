@@ -341,9 +341,12 @@ namespace UnpackKindleS
                                 Log.log("[Warn] The referred font file is unrecognized: "+name);
                             }
                             link = "../Fonts/" + name;
-                            font_Section.comment = name;
-                            fonts.Add(font_Section.data);
-                            font_names.Add(name);
+                            if (font_names.Find(s => s == name) == null)
+                            {
+                                font_Section.comment = name;
+                                fonts.Add(font_Section.data);
+                                font_names.Add(name);
+                            }
                         }
                         break;
                     default:
@@ -402,11 +405,11 @@ namespace UnpackKindleS
             foreach (var n in node.children)
             {
 
-                temp_epub3.Append(tabs + $"<li><a href=\"{n.href}\">{n.title}</a>");
+                temp_epub3.Append(tabs + $"<li><a href=\"{Util.XmlEscape(n.href)}\">{Util.XmlEscape(n.title)}</a>");
 
                 temp_epub2.Append(tabs + $"<navPoint id=\"navPoint-{playOrder}\" playOrder=\"{playOrder}\">\n");
-                temp_epub2.Append(tabs + $"\t<navLabel><text>{n.title}</text></navLabel>\n");
-                temp_epub2.Append(tabs + $"\t<content src=\"{n.href}\" />\n");
+                temp_epub2.Append(tabs + $"\t<navLabel><text>{Util.XmlEscape(n.title)}</text></navLabel>\n");
+                temp_epub2.Append(tabs + $"\t<content src=\"{Util.XmlEscape(n.href)}\" />\n");
 
                 playOrder++;
 
@@ -461,7 +464,7 @@ namespace UnpackKindleS
                         {
                             int offset = extraCoverDocAdded ? 1 : 0;
                             int i = azw3.frag_table[g.num].file_num + offset;
-                            guide += string.Format("    <li><a epub:type=\"{2}\" href=\"{1}\">{0}</a></li>\n", g.ref_name, Path.Combine("Text/", xhtml_names[i]), g.ref_type);
+                            guide += string.Format("    <li><a epub:type=\"{2}\" href=\"{1}\">{0}</a></li>\n", Util.XmlEscape(g.ref_name), Util.XmlEscape(Path.Combine("Text/", xhtml_names[i])), g.ref_type);
                         }
                         catch (Exception e)
                         {
@@ -478,7 +481,7 @@ namespace UnpackKindleS
                 string t = File.ReadAllText("template\\template_ncx.txt");
 
                 t = t.Replace("{❕navMap}", temp_epub2.ToString());
-                t = t.Replace("{❕Title}", azw3.title);
+                t = t.Replace("{❕Title}", Util.XmlEscape(azw3.title));
                 string z = azw3.mobi_header.extMeta.id_string.ContainsKey(504)
                     ? azw3.mobi_header.extMeta.id_string[504]
                     : Guid.NewGuid().ToString();//ASIN
@@ -662,7 +665,7 @@ namespace UnpackKindleS
                     string lang = azw3.mobi_header.extMeta.id_string.ContainsKey(524)
                         ? azw3.mobi_header.extMeta.id_string[524] : "ja";
                     XmlElement x = meta.CreateElement("dc:language");
-                    x.InnerXml = lang;
+                    x.InnerText = lang;
                     meta.FirstChild.AppendChild(x);
                 }
                 {
@@ -671,7 +674,7 @@ namespace UnpackKindleS
                     //x.SetAttribute("opf:scheme", "ASIN");
                     string z = azw3.mobi_header.extMeta.id_string.ContainsKey(504)
                         ? azw3.mobi_header.extMeta.id_string[504] : Guid.NewGuid().ToString();
-                    x.InnerXml = z;
+                    x.InnerText = z;
                     meta.FirstChild.AppendChild(x);
                     XmlElement xd = meta.CreateElement("meta");
                     xd.SetAttribute("property", "dcterms:modified");
@@ -809,6 +812,12 @@ namespace UnpackKindleS
                                       azw3.mobi_header.extMeta.id_string[527]);
                 string spine = azw3.resc.spine.OuterXml;
                 t = t.Replace("{❕spine}", spine.Replace("><", ">\n<"));
+                string guide = "";
+                if (cover_name != null)
+                    guide = string.Format(
+                        "<guide>\n  <reference type=\"cover\" title=\"Cover\" href=\"Text/{0}\" />\n</guide>",
+                        Util.XmlEscape(xhtml_names[0]));
+                t = t.Replace("{❕guide}", guide);
                 t = t.Replace("{❕version}", Version.version);
 
                 opf = t;

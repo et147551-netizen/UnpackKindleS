@@ -157,6 +157,12 @@ namespace UnpackKindleS
             return r;
         }
 
+        public static string XmlEscape(string s)
+        {
+            if (s == null) return "";
+            return System.Security.SecurityElement.Escape(s);
+        }
+
         public static string FilenameCheck(string s)
         {
             return s

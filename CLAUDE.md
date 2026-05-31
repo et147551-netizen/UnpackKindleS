@@ -88,7 +88,7 @@ UnpackKindleS/
 | `ExtMeta` | `Headers.cs` | Decodes EXTH metadata records into string/value/hex maps |
 | Section classes | `ProcessSection.cs` | `Section` (base), `FDST_Section`, `RESC_Section`, `INDX_Section_Main/Extra`, `CTOC_Section`, `Font_Section`, `Image_Section`, `Text_Section`, `CRES_Section`, `HREF_Section`, `PlaceHolder_Section` |
 | `PalmdocDecoder` / `HuffmanDecoder` | `Decompress.cs` | Decompression for compression types 2 (PalmDOC) and 0x4448 (Huffman + CDIC) |
-| `Util` | `utils.cs` | Big-endian binary readers, image-type sniffing, XML helpers, struct deserializer, filename sanitizer |
+| `Util` | `utils.cs` | Big-endian binary readers, image-type sniffing, XML helpers, struct deserializer, filename sanitizer, `XmlEscape` |
 | `Log` | `Log.cs` | Accumulates log lines; color-codes `[Warn]`/`[Error]`/`[Info]` on console; saves to `lastrun.log` |
 | `IdMapping` | `Structs&Dictionary.cs` | Static dictionaries mapping EXTH record IDs to human-readable names |
 | `Version` | `version.cs` | Single `version` string constant (date-formatted, e.g. `"20220126"`) |
@@ -183,12 +183,12 @@ OEBPS/
     flow0001.css
     …
   Images/
-    img0000.jpg / img0000.png / …
+    embed0000.jpg / embed0000.png / …  (HD variants: embed0000_HD.*)
   Fonts/
-    font0000.otf / font0000.ttf
+    embed0000.otf / embed0000.ttf
 ```
 
-Template files (`template_opf.txt`, `template_ncx.txt`, `template_nav.txt`, `template_cover.txt`) use `{❕placeholder}` tokens for substitution.
+Template files (`template_opf.txt`, `template_ncx.txt`, `template_nav.txt`, `template_cover.txt`) use `{❕placeholder}` tokens for substitution. `template_opf.txt` placeholders: `{❕meta}`, `{❕othermeta}`, `{❕version}`, `{❕manifest}`, `{❕spine}`, `{❕guide}`.
 
 ---
 
@@ -200,9 +200,9 @@ The XHTML in rawML uses Kindle-proprietary URI schemes that must be rewritten:
 |---|---|---|
 | `kindle:pos:fid:FFFF:off:OOOO` | `ProcLink` | `xhtml_filename#anchor` |
 | `kindle:flow:BASE32?mime=type/subtype` | `ProcTextRef` | CSS href (`../Styles/flowNNNN.css`) or inlined SVG |
-| `kindle:embed:BASE32?mime=image/ext` | `ProcEmbed` | `../Images/imgNNNN.ext` (HD image if azw6 is present) |
+| `kindle:embed:BASE32?mime=image/ext` | `ProcEmbed` | `../Images/embedNNNN.ext` (HD image if azw6 is present), or `../Fonts/embedNNNN.ttf` for fonts |
 
-BASE32 uses digits 0–9 then A–V (not standard base32 alphabet).
+BASE32 uses digits 0–9 then A–V (not standard base32 alphabet). Decoded by `Util.DecodeBase32`.
 
 ---
 
@@ -225,8 +225,44 @@ Log is saved to `lastrun.log` one level above the executable after each run. Use
 
 - `UnpackKindleSException` is the project's custom exception for format errors (e.g. wrong MOBI version, unsupported compression, encrypted file).
 - In **Debug** builds the `CreateIndexDoc()` call in `EpubBuilder` is not wrapped; exceptions propagate immediately.
-- In **Release** builds it is caught and logged so a malformed NCX/NAV does not abort the whole conversion.
+- In **Release** builds it is caught and logged so a malformed NCX/NAV does not abort the whole conversion. (Note: this means a TOC-generation bug can be silently swallowed in Release — check `lastrun.log` for `[Error]Cannot Create NCX or NAV.`)
 - Per-book exceptions in `-batch` mode are always caught and logged so one bad book does not stop the batch.
+
+---
+
+## EPUB Compatibility Notes
+
+These points are non-obvious and exist to prevent regressions — do not "simplify" them away.
+
+### Cover image — triple declaration
+The cover must be declared in three complementary ways in `content.opf` (`EpubBuilder.cs` `CreateOPF`):
+
+1. **EPUB3 manifest property**: `<item properties="cover-image" .../>` — required by the EPUB 3 spec.
+2. **EPUB2 legacy metadata**: `<meta name="cover" content="[image-id]"/>` — required by Google Play Books, Kobo, and most cloud/embedded readers that still use the EPUB2 heuristic.
+3. **OPF guide reference**: `<guide><reference type="cover" .../></guide>` pointing at the cover XHTML page — extra insurance for older readers.
+
+Removing any of these can break cover display on at least one class of reader. The cover image id is `Path.GetFileNameWithoutExtension(cover_name)` and matches the manifest item id.
+
+### Font MIME types
+Fonts in `OEBPS/Fonts/` use IANA-registered types: `.ttf` → `font/ttf`, `.otf` → `font/otf`. Do **not** revert to `application/font-sfnt` (never formally registered; rejected by some Readium-based readers).
+
+### Font deduplication
+`ProcEmbed`'s FONT branch must dedupe against `font_names` before adding (mirroring `AddImage`'s `img_names.Find` check). A font referenced from multiple CSS `@font-face` rules would otherwise be added multiple times, producing duplicate manifest `<item>` entries with the same id — an invalid EPUB.
+
+### NCX / NAV require manual XML escaping
+`toc.ncx` and `nav.xhtml` are assembled by **raw string concatenation** (`CreateIndexDoc_Helper`, the NAV guide loop, and the NCX `docTitle`), not via `XmlDocument`. Any text taken from CTOC (chapter titles, `docTitle`, guide names) **must** pass through `Util.XmlEscape` or a `&`/`<`/`>` in a title produces invalid XML and breaks the TOC (or the whole book) in strict readers. Content built through `XmlDocument` (manifest, spine, OPF metadata) is auto-escaped and does not need this.
+
+### EXTH metadata access
+Always use `ContainsKey` before indexing `ExtMeta.id_string[]` / `id_value[]`. Retail Kindle books always include fields 504 (ASIN) and 524 (language), but non-retail/malformed files may omit them and would otherwise throw `KeyNotFoundException` and abort. Fallbacks: language → `"ja"`, ASIN → `Guid.NewGuid().ToString()`.
+
+### `dc:language` / `dc:identifier` use InnerText
+Set these via `XmlElement.InnerText` (auto-escapes), not `InnerXml` (treats the value as markup).
+
+### `dcterms:modified` timestamp format
+Use `DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ssZ")` — uppercase `HH` (24-hour). Lowercase `hh` produces incorrect PM timestamps (15:30 → `T03:30:00Z`).
+
+### `page-progression-direction` on the spine element
+EXTH field 527 carries the reading direction (`rtl` for Japanese). It must be applied as an attribute on the `<spine>` element in the OPF, **not** as a `<meta>` element.
 
 ---
 
@@ -245,36 +281,6 @@ Log is saved to `lastrun.log` one level above the executable after each run. Use
 ## DeDRM Integration
 
 `dedrm.bat` (single line: calls `AZW3_PC_DeDRM.exe %1`) must be present next to the executable or one level up. It is invoked via `Process.Start` and `WaitForExit`. The `-dedrm` switch enables this path; without it the tool expects pre-decrypted `.azw3` files.
-
----
-
-## EPUB Compatibility Notes
-
-These points are non-obvious and exist to prevent regressions — do not "simplify" them away.
-
-### Cover image — dual declaration required
-The cover image must be declared **twice** in `content.opf`:
-
-1. **EPUB3** (manifest item, `EpubBuilder.cs`): `<item properties="cover-image" .../>` — required by the EPUB 3 spec.
-2. **EPUB2 legacy** (metadata block, `EpubBuilder.cs`): `<meta name="cover" content="[image-id]"/>` — required by Google Play Books, Kobo, and most cloud/embedded readers that still use the EPUB2 heuristic.
-
-Removing either tag will break cover display on at least one class of reader.
-
-### Font MIME types
-Fonts in `OEBPS/Fonts/` use IANA-registered types:
-- `.ttf` → `font/ttf`
-- `.otf` → `font/otf`
-
-Do **not** revert to `application/font-sfnt`; that type was never formally registered and is rejected by Readium-based readers.
-
-### EXTH metadata access
-Always use `ContainsKey` before indexing `ExtMeta.id_string[]` or `id_value[]`. Standard retail Kindle books always include fields 504 (ASIN) and 524 (language), but non-retail or malformed files may omit them. A direct `id_string[key]` without a guard throws `KeyNotFoundException` and aborts the conversion. Fallbacks: `"ja"` for language, `Guid.NewGuid().ToString()` for ASIN.
-
-### `dcterms:modified` timestamp format
-Use `DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ssZ")` — uppercase `HH` for 24-hour clock. The lowercase `hh` format produces incorrect PM timestamps (e.g. 15:30 → `T03:30:00Z`).
-
-### `page-progression-direction` on the spine element
-EXTH field 527 carries the `page-progression-direction` value (`rtl` for Japanese books). It must be applied as an attribute on the `<spine>` element in the OPF, **not** as a `<meta>` element. The RESC section spine XML may already carry this attribute for some files; for others it is only present in EXTH 527.
 
 ---
 
