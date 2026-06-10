@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime
 import os
 import re
+import uuid
 import zipfile
 from typing import List, Optional
 
@@ -325,9 +326,10 @@ class Epub:
             name = "embed" + util.number(resid) + (section.ext or "")
             if section.ext is None:
                 log.log("[Warn] The referred font file is unrecognized: " + name)
-            section.comment = name
-            self.fonts.append(section.data)
-            self.font_names.append(name)
+            if name not in self.font_names:
+                section.comment = name
+                self.fonts.append(section.data)
+                self.font_names.append(name)
             return "../Fonts/" + name
         raise NotImplementedError()
 
@@ -353,11 +355,13 @@ class Epub:
         tabs = "\t" * level
         e3.append("\n" + tabs + "<ol>\n")
         for n in node.children:
-            e3.append(tabs + '<li><a href="{0}">{1}</a>'.format(n.href, n.title))
+            e3.append(tabs + '<li><a href="{0}">{1}</a>'.format(
+                _esc_attr(n.href or ""), _esc_text(n.title or "")))
             e2.append(tabs + '<navPoint id="navPoint-{0}" playOrder="{0}">\n'.format(
                 self._play_order))
-            e2.append(tabs + "\t<navLabel><text>{0}</text></navLabel>\n".format(n.title))
-            e2.append(tabs + '\t<content src="{0}" />\n'.format(n.href))
+            e2.append(tabs + "\t<navLabel><text>{0}</text></navLabel>\n".format(
+                _esc_text(n.title or "")))
+            e2.append(tabs + '\t<content src="{0}" />\n'.format(_esc_attr(n.href or "")))
             self._play_order += 1
             if n.children is not None:
                 self._create_index_doc_helper(n, e3, e2, level + 1)
@@ -403,7 +407,9 @@ class Epub:
                     offset = 1 if self.extra_cover_doc_added else 0
                     i = azw3.frag_table[g.num].file_num + offset
                     guide += ('    <li><a epub:type="{2}" href="{1}">{0}</a></li>\n'
-                              .format(g.ref_name, "Text/" + self.xhtml_names[i], g.ref_type))
+                              .format(_esc_text(g.ref_name or ""),
+                                      _esc_attr("Text/" + self.xhtml_names[i]),
+                                      g.ref_type))
                 except Exception as e:  # noqa: BLE001
                     log.log("Error at Gen guide.")
                     log.log(repr(e))
@@ -414,8 +420,8 @@ class Epub:
         # NCX
         t = resources.load_template("template_ncx.txt")
         t = t.replace("{❕navMap}", "".join(e2))
-        t = t.replace("{❕Title}", azw3.title)
-        z = azw3.mobi_header.ext_meta.id_string[504]  # ASIN
+        t = t.replace("{❕Title}", _esc_text(azw3.title))
+        z = azw3.mobi_header.ext_meta.id_string.get(504) or str(uuid.uuid4())  # ASIN
         t = t.replace("{❕uid}", z)
         t = t.replace("{❕depth}", str(max_level + 1))
         self.ncx = t
@@ -512,8 +518,10 @@ class Epub:
         for fontname in self.font_names:
             media_type = ""
             ext = os.path.splitext(fontname)[1]
-            if ext in (".ttf", ".otf"):
-                media_type = "application/font-sfnt"
+            if ext == ".ttf":
+                media_type = "font/ttf"
+            elif ext == ".otf":
+                media_type = "font/otf"
             items.append(_el("item", [
                 ("href", "Fonts/" + fontname),
                 ("id", os.path.splitext(fontname)[0]),
@@ -532,11 +540,11 @@ class Epub:
         if 508 in meta.id_string:
             m.append(_el("meta", [("refines", "#title"), ("property", "file-as")],
                         meta.id_string[508]))
-        m.append(_el("dc:language", text=meta.id_string[524]))
-        m.append(_el("dc:identifier", [("id", "ASIN")], meta.id_string[504]))
-        # NOTE: format string mirrors the C# original ("hh" = 12-hour clock).
+        m.append(_el("dc:language", text=meta.id_string.get(524, "ja")))
+        m.append(_el("dc:identifier", [("id", "ASIN")],
+                    meta.id_string.get(504) or str(uuid.uuid4())))
         m.append(_el("meta", [("property", "dcterms:modified")],
-                    datetime.datetime.now().strftime("%Y-%m-%dT%I:%M:%SZ")))
+                    datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")))
         if 100 in meta.id_string:
             creatername = meta.id_string[100].split("&")
             sortname = meta.id_string[517].split("&") if 517 in meta.id_string else []
@@ -563,6 +571,11 @@ class Epub:
                 m.append(_el("meta", [("name", nm_name), ("content", meta.id_string[nm_id])]))
         if len(self.fonts) > 0:
             m.append(_el("meta", [("name", "ibooks:specified-fonts"), ("content", "true")]))
+        # EPUB2 legacy cover declaration: required by Google Play Books, Kobo and
+        # most cloud readers that still locate the cover via this heuristic.
+        if self.cover_name is not None:
+            m.append(_el("meta", [("name", "cover"),
+                                  ("content", os.path.splitext(self.cover_name)[0])]))
 
         othermeta = ""
         if 503 in meta.id_string:
@@ -575,8 +588,17 @@ class Epub:
 
         # ---- spine ----
         spine.set("toc", "ncxuks")
+        if 527 in meta.id_string:
+            spine.set("page-progression-direction", meta.id_string[527])
         spine_str = etree.tostring(spine, encoding="unicode")
         t = t.replace("{❕spine}", spine_str.replace("><", ">\n<"))
+
+        # ---- guide (legacy cover reference for older readers) ----
+        guide = ""
+        if self.cover_name is not None:
+            guide = ('<guide>\n  <reference type="cover" title="Cover" '
+                     'href="Text/{0}" />\n</guide>').format(_esc_attr(self.xhtml_names[0]))
+        t = t.replace("{❕guide}", guide)
         t = t.replace("{❕version}", VERSION)
 
         self.opf = t
