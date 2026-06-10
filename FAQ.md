@@ -44,3 +44,19 @@ TOブックス | TOブックス | 长1600(最新)
 + 检查客户端版本，确保没有升级。
 + 若出现`DrmException: No key found`以及`Cannot find .azw3 file`，代表提取出来的密钥失效，请删除kindlekey.k4i文件（密钥缓存），然后重新运行提取程序。保险起见，可尝试重新登录Kindle客户端。
 
+# Kindle for PC 服务终止
+
+**Kindle for PC（Windows 桌面版）将于 2026年6月30日 停止服务。**
+
+这意味着：
++ **2026年6月30日之后**，无法再通过 Kindle for PC 下载新书或已购书籍。
++ 在此之前下载的 `.azw` / `.azw.res` 文件不受影响，可继续使用本工具转换。
++ 本工具仍可正常将已有的 DRM 解除后文件（`_nodrm.azw3` + `.azw.res`）转换为 EPUB。
+
+**建议在服务终止前：**
+1. 在 Kindle for PC 中下载所有已购书籍（推荐使用 1.19～1.29 版本）。
+2. 使用 [DeDRM_tools](https://github.com/apprenticeharper/DeDRM_tools) 或 Release 版内置的 DeDRM 去除 DRM。
+3. 使用本工具转换并归档为 EPUB。
+
+Kindle for PC 的继任者为 Kindle 网页版阅读器，但目前不提供文件下载功能，因此下载窗口已于 2025年2月26日（USB 下载功能停止）关闭。**请尽快完成归档。**
+

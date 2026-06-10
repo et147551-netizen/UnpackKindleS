@@ -76,6 +76,7 @@ namespace UnpackKindleS
             {
                 Log.log("[Error]Cannot Create NCX or NAV.");
                 Log.log("[Error]" + e.ToString());
+                Console.Error.WriteLine("[Warning] Failed to create NCX/NAV (TOC may be missing). See lastrun.log for details.");
             }
 #endif
 
@@ -454,7 +455,7 @@ namespace UnpackKindleS
             CreateIndexDoc_Helper(root, temp_epub3, temp_epub2);
             //Create NAV
             {
-                string t = File.ReadAllText("template\\template_nav.txt");
+                string t = File.ReadAllText(Path.Combine("template", "template_nav.txt"));
                 t = t.Replace("{❕toc}", temp_epub3.ToString());
                 string guide = "";
                 if (azw3.guide_table != null)
@@ -478,7 +479,7 @@ namespace UnpackKindleS
                 nav = t;
             }
             {
-                string t = File.ReadAllText("template\\template_ncx.txt");
+                string t = File.ReadAllText(Path.Combine("template", "template_ncx.txt"));
 
                 t = t.Replace("{❕navMap}", temp_epub2.ToString());
                 t = t.Replace("{❕Title}", Util.XmlEscape(azw3.title));
@@ -506,7 +507,7 @@ namespace UnpackKindleS
                         {
                             Log.log("[Info]Adding a cover document.");
 
-                            string t = File.ReadAllText("template\\template_cover.txt");
+                            string t = File.ReadAllText(Path.Combine("template", "template_cover.txt"));
                             var (w, h) = Util.GetImageSize(imgs[img_names.IndexOf(cover_name)]);
                             cover = t.Replace("{❕image}", cover_name).Replace("{❕w}", w.ToString()).Replace("{❕h}", h.ToString());
 
@@ -540,7 +541,7 @@ namespace UnpackKindleS
         {
             if (azw3.resc != null)
             {
-                string t = File.ReadAllText("template\\template_opf.txt");
+                string t = File.ReadAllText(Path.Combine("template", "template_opf.txt"));
                 XmlDocument manifest = new XmlDocument();
                 XmlElement mani_root = manifest.CreateElement("manifest");
                 manifest.AppendChild(mani_root);

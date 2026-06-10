@@ -6,7 +6,7 @@ This file describes the codebase structure, build workflow, and conventions for 
 
 ## Project Overview
 
-**UnpackKindleS** is a C# .NET 5 command-line tool that:
+**UnpackKindleS** is a C# .NET 8 command-line tool that:
 
 1. Parses Kindle AZW3 (KF8/MOBI v8) ebook files that have had DRM removed.
 2. Optionally merges HD images from a companion `.azw.res` (AZW6/RBINCONT) resource file.
@@ -21,7 +21,7 @@ Primary audience: Japanese light-novel readers using Kindle for PC 1.19–1.29, 
 ```
 UnpackKindleS/
 ├── src/
-│   ├── UnpackKindleS.csproj     # .NET 5 project file
+│   ├── UnpackKindleS.csproj     # .NET 8 project file
 │   ├── Program.cs               # Entry point, CLI argument handling
 │   ├── Azw3File.cs              # AZW3 (KF8) parser
 │   ├── Azw6File.cs              # AZW.res (HD resource container) parser
@@ -99,7 +99,7 @@ UnpackKindleS/
 
 ### Development (source build)
 
-Requires .NET 5 SDK.
+Requires .NET 8 SDK.
 
 ```bash
 cd src
@@ -270,8 +270,8 @@ EXTH field 527 carries the reading direction (`rtl` for Japanese). It must be ap
 
 - **Namespace**: `UnpackKindleS` (single namespace for the entire project).
 - **Big-endian reads**: Always use `Util.GetUInt8/16/32/64`. Never use `BitConverter` directly on raw bytes from the file.
-- **Struct deserialization**: `Util.GetStructBE<T>` reverses the byte array before pinning it, converting from big-endian to the host's little-endian layout.
-- **No NuGet dependencies** beyond `System.Drawing.Common` (used only for `GetImageSize` in `Util`).
+- **Struct deserialization**: `Util.GetStructBE<T>` reverses the **entire** byte block before marshaling it into the struct. This means struct fields must be declared in **reverse disk order**: the first field in the C# struct corresponds to the last bytes on disk. See `Azw6HeaderInfo` in `src/Azw6.cs` for a concrete example. The Python port's `get_struct_be` docstring in `python/unpackkindles/azw6.py` documents the same invariant.
+- **No NuGet dependencies** (pure .NET BCL; `System.Drawing.Common` was removed when `GetImageSize` was rewritten to parse image headers directly).
 - Code comments and commit messages are primarily in **Chinese**; English is used for identifiers.
 - Version string in `version.cs` follows `YYYYMMDD` format.
 - When bumping the version, update only `src/version.cs`.
@@ -286,7 +286,7 @@ EXTH field 527 carries the reading direction (`rtl` for Japanese). It must be ap
 
 ## Development Notes
 
-- The project targets **net5** only. Do not upgrade to net6+ without verifying `System.Drawing.Common` still works on Windows (it was removed from cross-platform support in net6).
+- The project targets **net8.0**. `System.Drawing.Common` was intentionally removed; `Util.GetImageSize` now parses JPEG/PNG/GIF headers directly (no GDI+ dependency), enabling cross-platform builds.
 - `PublishTrimmed` + `TrimMode=Link` is used in Release; avoid reflection-based features or mark them with `[DynamicallyAccessedMembers]` if added.
 - `publish.bat` expects a `Released\AZW3_PC_DeDRM.exe` file to exist in the repo root; this binary is not committed to source control but is required for a full release build.
 - The `.gitattributes` file is present; check it if line-ending issues arise with the template `.txt` files.
