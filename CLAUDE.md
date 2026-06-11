@@ -117,7 +117,7 @@ publish.bat
 
 This script:
 1. Cleans `bin/` everywhere.
-2. Runs `dotnet publish -c Release -r win10-x64` (self-contained, single-file, trimmed).
+2. Runs `dotnet publish -c Release -r win-x64` (self-contained, single-file, trimmed).
 3. Copies template files, DTD, batch scripts, and `AZW3_PC_DeDRM.exe` into `bin/`.
 
 The output is a standalone `bin/app/UnpackKindleS.exe` that requires no .NET runtime.
