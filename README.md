@@ -1,4 +1,7 @@
 # UnpackKindleS
+
+> **⚠️ 重要通知（2026年6月）**：Kindle for PC（Windows 桌面版）将于 **2026年6月30日** 停止服务，届时将无法再通过该客户端下载新书。本工具定位为**历史存档转换工具**——如果你已有 DRM 解除后的 `.azw3` / `.azw.res` 文件，本工具仍可正常将其转换为 EPUB。建议在服务终止前完成所有书籍的下载与 DeDRM 处理。详见 [FAQ](FAQ.md#kindle-for-pc-服务终止)。
+
 将 XXX_nodrm.azw3(通过DeDRM工具生成) 和 azw.res(Kindle for PC 1.19 or later) 合并为 epub。推荐使用Kindle for PC 1.19~1.29之间的版本。
 
 ## 使用场景
@@ -54,7 +57,7 @@ Release版可执行文件为Windows 64bit，不需要安装任何依赖。[【�
 
 ### 使用开发版
 
-安装dotnet 5，请使用源码中的bat，自行配置dedrm.bat，其他同上。
+安装 dotnet 8，请使用源码中的 bat，自行配置 dedrm.bat，其他同上。
 
 
 ## 其他说明

@@ -15,4 +15,5 @@
   </metadata>
 {❕manifest}
 {❕spine}
+{❕guide}
 </package>

@@ -4,8 +4,6 @@ using System.IO.Compression;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Xml;
-using System.Drawing;
-using System.Drawing.Imaging;
 namespace UnpackKindleS
 {
 
@@ -157,6 +155,12 @@ namespace UnpackKindleS
             return r;
         }
 
+        public static string XmlEscape(string s)
+        {
+            if (s == null) return "";
+            return System.Security.SecurityElement.Escape(s);
+        }
+
         public static string FilenameCheck(string s)
         {
             return s
@@ -174,10 +178,42 @@ namespace UnpackKindleS
 
         public static (int, int) GetImageSize(byte[] data)
         {
-            using (var img = Image.FromStream(new MemoryStream(data)))
+            // JPEG: scan for SOF marker (FF C0-CF, excluding C4/C8/CC)
+            if (data.Length > 3 && data[0] == 0xFF && data[1] == 0xD8)
             {
-                return (img.Width, img.Height);
+                int i = 2;
+                while (i + 8 < data.Length)
+                {
+                    if (data[i] != 0xFF) break;
+                    byte marker = data[i + 1];
+                    int segLen = (data[i + 2] << 8) | data[i + 3];
+                    if (marker >= 0xC0 && marker <= 0xCF
+                        && marker != 0xC4 && marker != 0xC8 && marker != 0xCC)
+                    {
+                        int h = (data[i + 5] << 8) | data[i + 6];
+                        int w = (data[i + 7] << 8) | data[i + 8];
+                        return (w, h);
+                    }
+                    i += 2 + segLen;
+                }
             }
+            // PNG: IHDR dimensions at offset 16 (big-endian)
+            if (data.Length >= 24
+                && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47)
+            {
+                int w = (data[16] << 24) | (data[17] << 16) | (data[18] << 8) | data[19];
+                int h = (data[20] << 24) | (data[21] << 16) | (data[22] << 8) | data[23];
+                return (w, h);
+            }
+            // GIF: logical screen descriptor at offset 6 (little-endian)
+            if (data.Length >= 10
+                && data[0] == 0x47 && data[1] == 0x49 && data[2] == 0x46)
+            {
+                int w = data[6] | (data[7] << 8);
+                int h = data[8] | (data[9] << 8);
+                return (w, h);
+            }
+            return (0, 0);
         }
     }
 

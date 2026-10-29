@@ -70,10 +70,10 @@ namespace UnpackKindleS
             if (!end_of_proc) ProcPath(args);
             if (append_log)
             {
-                Log.Append("..\\lastrun.log");
+                Log.Append(Path.Combine("..", "lastrun.log"));
             }
             else
-                Log.Save("..\\lastrun.log");
+                Log.Save(Path.Combine("..", "lastrun.log"));
 
             Environment.CurrentDirectory = temp_environment_dir;
         }
@@ -302,7 +302,7 @@ namespace UnpackKindleS
         {
             string fn = "";
             if (File.Exists("dedrm.bat")) { fn = "dedrm.bat"; }
-            else if (File.Exists("..\\dedrm.bat")) { fn = "..\\dedrm.bat"; }
+            else if (File.Exists(Path.Combine("..", "dedrm.bat"))) { fn = Path.Combine("..", "dedrm.bat"); }
             else { Log.log("Cannot found dedrm.bat"); return; }
             Process p = new Process();
             p.StartInfo.FileName = fn;
